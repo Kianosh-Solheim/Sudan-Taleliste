@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <title>Taleliste</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background: #f4f4f4; }
+    input, button { margin: 0.5rem; padding: 0.5rem; font-size: 1rem; }
+    ul { list-style: none; padding: 0; }
+    li { padding: 0.5rem; background: #e3e3e3; margin-bottom: 0.5rem; border-radius: 5px; }
+    #timer { font-size: 2rem; margin-top: 1rem; }
+    #logo { max-width: 150px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto; }
+    .replikk {
+      background-color: #fff3cd !important;
+      border-left: 4px solid #ffc107;
+    }
+    #landKnapper button {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <img id="logo" src="https://media.snl.no/media/271745/standard_fn.png" alt="FN-logo" />
+  <div id="aktivTaler" style="font-size: 1.5rem; margin-top: 1rem; padding: 1rem; background: #d1e7dd; border-left: 5px solid #0f5132; border-radius: 5px;"></div>
+  <h1>Taleliste</h1>
+
+  <button onclick="fjernFørste()" style="background-color: #28a745; color: white; border: none;">Neste taler</button>
+  <button onclick="nullstill()" style="background-color: #dc3545; color: white; border: none;">Nullstill liste</button>
+  <button onclick="eksporterListe()">Eksporter liste</button>
+  <button id="pauseKnapp" onclick="pauseEllerFortsettTimer()">Pause</button>
+
+  <div style="display: flex; gap: 2rem; align-items: flex-start;">
+    <div style="flex: 1;">
+      <h2>Rekkefølge:</h2>
+      <ul id="liste"></ul>
+      <div id="timer"></div>
+    </div>
+    <div id="landKnapper" style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 400px;"></div>
+  </div>
+
+  <script>
+    let valgtLand = null;
+    const landData = [
+      { kode: 'sd', navn: 'Sudan' }, { kode: 'dz', navn: 'Algerie' }, { kode: 'dk', navn: 'Danmark' },
+      { kode: 'fr', navn: 'Frankrike' }, { kode: 'gy', navn: 'Guyana' }, { kode: 'gr', navn: 'Hellas' },
+      { kode: 'cn', navn: 'Kina' }, { kode: 'pk', navn: 'Pakistan' }, { kode: 'pa', navn: 'Panama' },
+      { kode: 'ru', navn: 'Russland' }, { kode: 'sl', navn: 'Sierra Leone' }, { kode: 'si', navn: 'Slovenia' },
+      { kode: 'so', navn: 'Somalia' }, { kode: 'gb', navn: 'Storbritannia' }, { kode: 'kr', navn: 'Sør-Korea' },
+      { kode: 'us', navn: 'USA' }
+    ].sort((a, b) => a.navn.localeCompare(b.navn));
+
+    const landNavn = Object.fromEntries(landData.map(l => [l.kode, l.navn]));
+
+    const container = document.getElementById('landKnapper');
+    landData.forEach(land => {
+      const btn = document.createElement('button');
+      btn.innerHTML = `<img src='https://flagcdn.com/24x18/${land.kode}.png' alt='${land.kode}' style='vertical-align:middle;'> ${land.navn}`;
+      btn.onclick = () => {
+        valgtLand = land.kode;
+        leggTil();
+      };
+      container.appendChild(btn);
+    });
+
+    const navnListe = [];
+    let timerInterval;
+    let gjenværendeTid = 0;
+    let erPause = false;
+
+    function hentFlaggKode(kode) {
+      return kode || '';
+    }
+
+    function oppdaterVisning() {
+      const ul = document.getElementById('liste');
+      ul.innerHTML = '';
+      navnListe.forEach((element, index) => {
+        const land = typeof element === 'string' ? element : element.kode;
+        const li = document.createElement('li');
+        li.innerHTML = `${index + 1}. <img src='https://flagcdn.com/24x18/${land}.png' alt='${land}' style='vertical-align:middle;'> ${landNavn[land] || land}${element.replikk ? ' <strong>(Replikk)</strong>' : ''} <button onclick='settReplikk(${index})' style='margin-left:10px;'>R</button> <button onclick='fjernIndividuelt(${index})' style='margin-left:5px;'>Fjern</button>`;
+        if (element.replikk) {
+          li.classList.add('replikk');
+        }
+        ul.appendChild(li);
+      });
+    }
+
+    function leggTil() {
+      if (valgtLand) {
+        navnListe.push(valgtLand);
+        oppdaterVisning();
+      }
+    }
+
+    function fjernFørste() {
+      if (navnListe.length > 0) {
+        const aktiv = typeof navnListe[0] === 'string' ? navnListe.shift() : navnListe.shift().kode;
+        oppdaterVisning();
+        startNedtelling(2 * 60);
+        document.getElementById('aktivTaler').innerHTML = `Aktiv taler: <img src='https://flagcdn.com/24x18/${aktiv}.png' alt='${aktiv}' style='vertical-align:middle;'> ${landNavn[aktiv] || aktiv}`;
+      }
+    }
+
+    function nullstill() {
+      const tekst = navnListe.map((entry, index) => {
+        const kode = typeof entry === 'string' ? entry : entry.kode;
+        const land = landNavn[kode] || kode;
+        const mark = entry.replikk ? ' (Replikk)' : '';
+        return `${index + 1}. ${land}${mark}`;
+      }).join('\n');
+
+      const blob = new Blob([tekst], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'taleliste_før_nullstilling.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      const bekreft = document.createElement('div');
+      bekreft.innerHTML = `
+        <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 9999;">
+          <div style="background: white; padding: 2rem; border-radius: 8px; text-align: center;">
+            <p style="font-size: 1.2rem;">Er du sikker på at du vil nullstille listen?</p>
+            <button style="background-color: #dc3545; color: white; border: none; margin: 0.5rem; padding: 0.5rem 1rem; font-size: 1rem;" onclick="bekreftNullstilling(true)">Ja</button>
+            <button style="background-color: #28a745; color: white; border: none; margin: 0.5rem; padding: 0.5rem 1rem; font-size: 1rem;" onclick="bekreftNullstilling(false)">Nei</button>
+          </div>
+        </div>
+      `;
+      bekreft.id = 'bekreftDialog';
+      document.body.appendChild(bekreft);
+    }
+
+    function bekreftNullstilling(ja) {
+      const dialog = document.getElementById('bekreftDialog');
+      if (dialog) dialog.remove();
+      if (ja) {
+        navnListe.length = 0;
+        clearInterval(timerInterval);
+        document.getElementById('timer').textContent = '';
+        document.getElementById('aktivTaler').textContent = '';
+        oppdaterVisning();
+      }
+    }
+
+    function startNedtelling(sekunder) {
+      clearInterval(timerInterval);
+      gjenværendeTid = sekunder;
+      erPause = false;
+      const timerEl = document.getElementById('timer');
+
+      function oppdaterTimer() {
+        if (!erPause) {
+          const minutter = Math.floor(gjenværendeTid / 60);
+          const sek = gjenværendeTid % 60;
+          timerEl.textContent = `Tid igjen: ${minutter}:${sek < 10 ? '0' : ''}${sek}`;
+          if (gjenværendeTid <= 0) {
+            clearInterval(timerInterval);
+            timerEl.textContent = "Tiden er ute!";
+          }
+          gjenværendeTid--;
+        }
+      }
+
+      oppdaterTimer();
+      timerInterval = setInterval(oppdaterTimer, 1000);
+    }
+
+    function fjernIndividuelt(index) {
+      navnListe.splice(index, 1);
+      oppdaterVisning();
+    }
+
+    function settReplikk(index) {
+      const land = navnListe[index];
+      if (typeof land === 'string') {
+        navnListe[index] = { kode: land, replikk: true };
+      } else {
+        navnListe[index].replikk = !navnListe[index].replikk;
+      }
+      oppdaterVisning();
+    }
+
+    function pauseEllerFortsettTimer() {
+      erPause = !erPause;
+      const knapp = document.getElementById('pauseKnapp');
+      knapp.textContent = erPause ? 'Fortsett' : 'Pause';
+    }
+
+    function eksporterListe() {
+      const tekst = navnListe.map((entry, index) => {
+        const kode = typeof entry === 'string' ? entry : entry.kode;
+        const land = landNavn[kode] || kode;
+        const mark = entry.replikk ? ' (Replikk)' : '';
+        return `${index + 1}. ${land}${mark}`;
+      }).join('\n');
+
+      const blob = new Blob([tekst], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'taleliste.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+  <footer style="margin-top: 4rem; text-align: center; font-size: 0.9rem; color: #666;">
+    Laget av Kianosh F. Solheim for FN-SAMBANDET VEST • Versjon 1.0 • © 2025 • Bergen
+  </footer>
+</body>
+</html>

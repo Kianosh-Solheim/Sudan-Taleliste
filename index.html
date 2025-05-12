@@ -6,7 +6,11 @@
   <style>
     body { font-family: sans-serif; padding: 2rem; background: #f4f4f4; }
     input, button { margin: 0.5rem; padding: 0.5rem; font-size: 1rem; }
-    ul { list-style: none; padding: 0; }
+    ul {
+  list-style: none;
+  padding: 0;
+  min-height: 50px;
+}
     li { padding: 0.5rem; background: #e3e3e3; margin-bottom: 0.5rem; border-radius: 5px; }
     #timer { font-size: 2rem; margin-top: 1rem; }
     #logo { max-width: 150px; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto; }
@@ -22,9 +26,26 @@
   </style>
 </head>
 <body>
-  <img id="logo" src="https://media.snl.no/media/271745/standard_fn.png" alt="FN-logo" />
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+  <div id="timer" style="font-size: 1.5rem; transition: color 0.3s;">Tid igjen: --:--</div>
+  <img id="logo" src="https://media.snl.no/media/271745/standard_fn.png" alt="FN-logo" style="height: 60px; display: block;" />
+  <div id="klokkeslett" style="font-size: 1.5rem;"></div>
+  </div>
   <div id="aktivTaler" style="font-size: 1.5rem; margin-top: 1rem; padding: 1rem; background: #d1e7dd; border-left: 5px solid #0f5132; border-radius: 5px;"></div>
-  <h1>Taleliste</h1>
+  <label for="taletidVelger">Vel taletid (minutt):</label>
+<select id="taletidVelger">
+  <option value="1">1 minutt</option>
+  <option value="1.5">1,5 minutter</option>
+  <option value="2" selected>2 minutter</option>
+  <option value="2.5">2,5 minutter</option>
+  <option value="3">3 minutter</option>
+  <option value="3.5">3,5 minutter</option>
+  <option value="4">4 minutter</option>
+  <option value="4.5">4,5 minutter</option>
+  <option value="5">5 minutter</option>
+</select>
+
+<h1>Taleliste</h1>
 
   <button onclick="fjernFørste()" style="background-color: #28a745; color: white; border: none;">Neste taler</button>
   <button onclick="nullstill()" style="background-color: #dc3545; color: white; border: none;">Nullstill liste</button>
@@ -34,9 +55,8 @@
   <div style="display: flex; gap: 2rem; align-items: flex-start;">
     <div style="flex: 1;">
       <h2>Rekkefølge:</h2>
-      <ul id="liste"></ul>
-      <div id="timer"></div>
-    </div>
+      <ul id="liste" ondragover="event.preventDefault()" ondrop="slippElement(event)"></ul>
+          </div>
     <div id="landKnapper" style="display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 400px;"></div>
   </div>
 
@@ -79,8 +99,9 @@
       navnListe.forEach((element, index) => {
         const land = typeof element === 'string' ? element : element.kode;
         const li = document.createElement('li');
-        li.innerHTML = `${index + 1}. <img src='https://flagcdn.com/24x18/${land}.png' alt='${land}' style='vertical-align:middle;'> ${landNavn[land] || land}${element.replikk ? ' <strong>(Replikk)</strong>' : ''} <button onclick='settReplikk(${index})' style='margin-left:10px;'>R</button> <button onclick='fjernIndividuelt(${index})' style='margin-left:5px;'>Fjern</button>`;
-        if (element.replikk) {
+        li.innerHTML = `${index + 1}. <img src='https://flagcdn.com/24x18/${land}.png' alt='${land}' style='vertical-align:middle;'> ${landNavn[land] || land}${element.replikk ? ' <strong>(Replikk)</strong>' : ''} <button onclick='settReplikk(${index})' style='margin-left:10px;'>R</button> <button onclick='flyttOpp(${index})'>↑</button> <button onclick='flyttNed(${index})'>↓</button> <button onclick='fjernIndividuelt(${index})' style='margin-left:5px;'>Fjern</button>`;
+        li.draggable = true;
+        li.ondragstart = (e) => e.dataTransfer.setData('text/plain', index.toString());        if (element.replikk) {
           li.classList.add('replikk');
         }
         ul.appendChild(li);
@@ -98,7 +119,8 @@
       if (navnListe.length > 0) {
         const aktiv = typeof navnListe[0] === 'string' ? navnListe.shift() : navnListe.shift().kode;
         oppdaterVisning();
-        startNedtelling(2 * 60);
+        const valgtTid = parseFloat(document.getElementById('taletidVelger').value) * 60;
+        startNedtelling(valgtTid);
         document.getElementById('aktivTaler').innerHTML = `Aktiv taler: <img src='https://flagcdn.com/24x18/${aktiv}.png' alt='${aktiv}' style='vertical-align:middle;'> ${landNavn[aktiv] || aktiv}`;
       }
     }
@@ -158,6 +180,7 @@
           const minutter = Math.floor(gjenværendeTid / 60);
           const sek = gjenværendeTid % 60;
           timerEl.textContent = `Tid igjen: ${minutter}:${sek < 10 ? '0' : ''}${sek}`;
+          timerEl.style.color = gjenværendeTid < 10 ? '#dc3545' : '#000';
           if (gjenværendeTid <= 0) {
             clearInterval(timerInterval);
             timerEl.textContent = "Tiden er ute!";
@@ -209,9 +232,46 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     }
-  </script>
+  function slippElement(event) {
+      const fraIndex = Number(event.dataTransfer.getData('text/plain'));
+      const tilElement = event.target.closest('li');
+      if (!tilElement) return;
+      const tilIndex = [...tilElement.parentNode.children].indexOf(tilElement);
+      const element = navnListe.splice(fraIndex, 1)[0];
+      navnListe.splice(tilIndex, 0, element);
+      oppdaterVisning();
+    }
+
+function flyttOpp(index) {
+  if (index > 0) {
+    const tmp = navnListe[index];
+    navnListe[index] = navnListe[index - 1];
+    navnListe[index - 1] = tmp;
+    oppdaterVisning();
+  }
+}
+
+function flyttNed(index) {
+  if (index < navnListe.length - 1) {
+    const tmp = navnListe[index];
+    navnListe[index] = navnListe[index + 1];
+    navnListe[index + 1] = tmp;
+    oppdaterVisning();
+  }
+}
+
+setInterval(() => {
+  const nå = new Date();
+  const klEl = document.getElementById('klokkeslett');
+  if (klEl) {
+    const tid = nå.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    klEl.textContent = `Klokkeslett: ${tid}`;
+  }
+}, 1000);
+
+</script>
   <footer style="margin-top: 4rem; text-align: center; font-size: 0.9rem; color: #666;">
-    Laget av Kianosh F. Solheim for FN-SAMBANDET VEST • Versjon 1.0 • © 2025 • Bergen
+    Laget av Kianosh F. Solheim • For FN-sambandet Vest • Versjon 1.1 • Bergen • © 2025
   </footer>
 </body>
 </html>
